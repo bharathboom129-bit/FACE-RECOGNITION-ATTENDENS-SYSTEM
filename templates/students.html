@@ -1,0 +1,410 @@
+{% extends "base.html" %}
+{% block title %}Students Registry — Smart Classroom AI Portal{% endblock %}
+
+{% block content %}
+<div class="glass-card p-4 mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+            <h4 class="fw-bold text-white mb-1"><i class="fa-solid fa-users me-2 text-info"></i>Student Master Registry</h4>
+            <p class="text-muted small mb-0">Register new students, update parent contact details, or edit student records.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <div class="input-group">
+                <span class="input-group-text bg-dark border-secondary text-info"><i class="fa-solid fa-search"></i></span>
+                <input type="text" id="search-student" class="form-control form-control-custom bg-dark border-secondary text-white" placeholder="Search by ID or Name..." onkeyup="searchStudents()">
+            </div>
+            <button onclick="retrainModel()" class="btn btn-outline-warning text-nowrap"><i class="fa-solid fa-brain me-1"></i>Retrain AI Model</button>
+            <button class="btn btn-neon-blue text-nowrap" data-bs-toggle="modal" data-bs-target="#addStudentModal"><i class="fa-solid fa-user-plus me-1"></i>Register New Student</button>
+        </div>
+    </div>
+</div>
+
+<!-- Student List Table -->
+<div class="glass-card p-4">
+    <div class="table-responsive">
+        <table class="table table-custom align-middle">
+            <thead>
+                <tr>
+                    <th>Serial #</th>
+                    <th>Student ID (USN)</th>
+                    <th>Student Name</th>
+                    <th>Class / Subject</th>
+                    <th>Registration Date</th>
+                    <th>Parent Email</th>
+                    <th>Parent Phone</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="students-table-body">
+                <tr>
+                    <td colspan="8" class="text-center text-muted py-4"><i class="fa-solid fa-spinner fa-spin me-2 text-info"></i>Loading student registry...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Add Student Modal -->
+<div class="modal fade" id="addStudentModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+        <div class="modal-content bg-dark text-white border-secondary" style="background-color: #141722 !important;">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title fw-bold text-info"><i class="fa-solid fa-user-plus me-2"></i>Register New Student</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" onclick="stopRegistrationCamera()"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-4">
+                    <!-- LEFT: Form -->
+                    <div class="col-md-5">
+                        <form id="add-student-form">
+                            <div class="mb-3">
+                                <label class="form-label-custom">Student ID / USN *</label>
+                                <input type="text" id="reg-id" class="form-control form-control-custom" placeholder="e.g. 1AM24MC099" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label-custom">Full Name *</label>
+                                <input type="text" id="reg-name" class="form-control form-control-custom" placeholder="e.g. Rahul Sharma" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label-custom">Class / Subject *</label>
+                                <input type="text" id="reg-subject" list="subject-options" class="form-control form-control-custom" placeholder="e.g. MCA Section A, Python, Java" required>
+                                <datalist id="subject-options">
+                                    {% for subj in subjects %}
+                                    <option value="{{ subj }}">
+                                    {% endfor %}
+                                    <option value="MCA Section A">
+                                    <option value="Python">
+                                    <option value="Java">
+                                </datalist>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label-custom">Parent Email Address</label>
+                                <input type="email" id="reg-email" class="form-control form-control-custom" placeholder="parent@gmail.com">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label-custom">Parent Phone Number</label>
+                                <input type="text" id="reg-phone" class="form-control form-control-custom" placeholder="+91 9876543210">
+                            </div>
+                            <div id="capture-status-msg" class="small text-info mb-2 fw-bold" style="display:none;"></div>
+                        </form>
+                    </div>
+                    <!-- RIGHT: Live Camera Preview (MJPEG from OpenCV server) -->
+                    <div class="col-md-7">
+                        <div class="d-flex flex-column align-items-center h-100" style="background: rgba(0,0,0,0.4); border-radius: 12px; padding: 14px; border: 2px solid rgba(0,174,255,0.3);">
+                            <div style="position: relative; width: 100%; max-width: 440px;">
+                                <!-- MJPEG stream from OpenCV backend — shows real face detection box -->
+                                <img id="reg-mjpeg" src="" alt="Live Camera"
+                                     style="width:100%; border-radius:10px; border: 2px solid #00aeff; display:none; background:#000;"
+                                     onerror="this.style.display='none'; document.getElementById('reg-cam-placeholder').style.display='flex';">
+                                <!-- Placeholder when camera is off -->
+                                <div id="reg-cam-placeholder" style="width:100%; min-height:300px; border-radius:10px; background: linear-gradient(135deg,#1a1a2e,#16213e); display:flex; flex-direction:column; align-items:center; justify-content:center; border: 2px dashed rgba(0,174,255,0.4);">
+                                    <i class="fa-solid fa-camera fa-4x text-info mb-3" style="opacity:0.5;"></i>
+                                    <p class="text-muted mb-1 fw-bold">Live Face Camera</p>
+                                    <p class="text-muted small">Click Start Camera to see OpenCV live preview</p>
+                                </div>
+                                <!-- Progress badge -->
+                                <div id="reg-progress-badge" style="position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.75); color:#00ff88; font-size:1em; font-weight:bold; padding:4px 13px; border-radius:20px; display:none;">
+                                    Captured: <span id="reg-captured-count">0</span> / 50
+                                </div>
+                            </div>
+                            <div class="mt-3 text-center w-100">
+                                <div id="reg-cam-status" class="small mb-2">
+                                    <i class="fa-solid fa-circle text-danger me-1"></i><span id="reg-cam-status-text">Camera offline</span>
+                                </div>
+                                <button type="button" onclick="startRegistrationCamera()" class="btn btn-sm btn-outline-info me-2">
+                                    <i class="fa-solid fa-play me-1"></i>Start Camera
+                                </button>
+                                <button type="button" onclick="stopRegistrationCamera()" class="btn btn-sm btn-outline-secondary">
+                                    <i class="fa-solid fa-stop me-1"></i>Stop Camera
+                                </button>
+                            </div>
+                        </div>
+                    </div></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary d-flex justify-content-between">
+                <button type="button" id="btn-capture-photos" onclick="captureStudentPhotos()" class="btn btn-warning btn-sm fw-bold">
+                    <i class="fa-solid fa-camera me-1"></i>Capture 50 Face Samples &amp; Train AI
+                </button>
+                <div>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal" onclick="stopRegistrationCamera()">Cancel</button>
+                    <button type="button" onclick="submitAddStudent()" class="btn btn-neon-blue btn-sm"><i class="fa-solid fa-check me-1"></i>Save &amp; Register</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Student Modal -->
+<div class="modal fade" id="editStudentModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-white border-secondary" style="background-color: #141722 !important;">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title fw-bold text-info"><i class="fa-solid fa-user-pen me-2"></i>Edit Student Information</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="edit-student-form">
+                    <input type="hidden" id="edit-old-id">
+                    <div class="mb-3">
+                        <label class="form-label-custom">Student ID / USN *</label>
+                        <input type="text" id="edit-id" class="form-control form-control-custom" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label-custom">Full Name *</label>
+                        <input type="text" id="edit-name" class="form-control form-control-custom" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label-custom">Class / Subject *</label>
+                        <input type="text" id="edit-subject" list="subject-options" class="form-control form-control-custom" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label-custom">Parent Email Address</label>
+                        <input type="email" id="edit-email" class="form-control form-control-custom" placeholder="parent@gmail.com">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label-custom">Parent Phone Number</label>
+                        <input type="text" id="edit-phone" class="form-control form-control-custom" placeholder="+91 9876543210">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" onclick="submitEditStudent()" class="btn btn-neon-blue"><i class="fa-solid fa-save me-1"></i>Update Student</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function searchStudents() {
+    loadStudents();
+}
+
+function loadStudents() {
+    const q = document.getElementById('search-student') ? document.getElementById('search-student').value.trim() : '';
+    const url = q ? `/api/students/search?q=${encodeURIComponent(q)}` : '/api/students';
+    
+    fetch(url)
+        .then(res => res.json())
+        .then(data => {
+            const tbody = document.getElementById('students-table-body');
+            tbody.innerHTML = '';
+
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">No students found.</td></tr>';
+                return;
+            }
+
+            data.forEach(st => {
+                const tr = document.createElement('tr');
+                const pEmail = st['PARENT_EMAIL'] && st['PARENT_EMAIL'] !== 'Not Set' ? st['PARENT_EMAIL'] : '<span class="text-secondary">Not Set</span>';
+                const pPhone = st['PARENT_PHONE'] && st['PARENT_PHONE'] !== 'Not Set' ? st['PARENT_PHONE'] : '<span class="text-secondary">Not Set</span>';
+
+                tr.innerHTML = `
+                    <td class="text-white fw-bold">${st['SERIAL NO.'] || '-'}</td>
+                    <td class="fw-bold text-info">${st['ID']}</td>
+                    <td class="fw-bold text-white fs-6">${st['NAME']}</td>
+                    <td class="text-white">${st['CLASS_SUBJECT'] || '-'}</td>
+                    <td class="text-muted small">${st['REGISTRATION_DATE'] || '-'}</td>
+                    <td class="text-white">${pEmail}</td>
+                    <td class="text-white">${pPhone}</td>
+                    <td>
+                        <button onclick="openEditStudentModal('${st['ID']}', '${escapeJs(st['NAME'])}', '${escapeJs(st['CLASS_SUBJECT'])}', '${escapeJs(st['PARENT_EMAIL'] || '')}', '${escapeJs(st['PARENT_PHONE'] || '')}')" class="btn btn-sm btn-outline-info me-1"><i class="fa-solid fa-pen-to-square"></i> Edit</button>
+                        <button onclick="sendParentEmail('${st['ID']}')" class="btn btn-sm btn-outline-warning me-1"><i class="fa-solid fa-envelope"></i> Email Parent</button>
+                        <button onclick="deleteStudent('${st['ID']}')" class="btn btn-sm btn-outline-danger"><i class="fa-solid fa-trash"></i> Delete</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        });
+}
+
+function escapeJs(str) {
+    return String(str || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
+
+function openEditStudentModal(id, name, subject, parentEmail, parentPhone) {
+    document.getElementById('edit-old-id').value = id;
+    document.getElementById('edit-id').value = id;
+    document.getElementById('edit-name').value = name;
+    document.getElementById('edit-subject').value = subject;
+    document.getElementById('edit-email').value = parentEmail;
+    document.getElementById('edit-phone').value = parentPhone;
+    new bootstrap.Modal(document.getElementById('editStudentModal')).show();
+}
+
+function submitAddStudent() {
+    const id = document.getElementById('reg-id').value.trim();
+    const name = document.getElementById('reg-name').value.trim();
+    const subject = document.getElementById('reg-subject').value;
+    const parent_email = document.getElementById('reg-email').value.trim();
+    const parent_phone = document.getElementById('reg-phone').value.trim();
+
+    if (!id || !name) {
+        alert("Please enter both Student ID and Name!");
+        return;
+    }
+
+    fetch('/api/students/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, name, subject, parent_email, parent_phone })
+    })
+    .then(res => res.json())
+    .then(data => {
+        alert(data.message);
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('addStudentModal')).hide();
+            document.getElementById('add-student-form').reset();
+            loadStudents();
+        }
+    });
+}
+
+function submitEditStudent() {
+    const old_id = document.getElementById('edit-old-id').value.trim();
+    const id = document.getElementById('edit-id').value.trim();
+    const name = document.getElementById('edit-name').value.trim();
+    const subject = document.getElementById('edit-subject').value;
+    const parent_email = document.getElementById('edit-email').value.trim();
+    const parent_phone = document.getElementById('edit-phone').value.trim();
+
+    if (!id || !name) {
+        alert("Student ID and Name are required!");
+        return;
+    }
+
+    fetch('/api/students/edit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ old_id, id, name, subject, parent_email, parent_phone })
+    })
+    .then(res => res.json())
+    .then(data => {
+        alert(data.message);
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('editStudentModal')).hide();
+            loadStudents();
+        }
+    });
+}
+
+function sendParentEmail(studentId) {
+    if (confirm(`Send parent warning email alert for student ID ${studentId}?`)) {
+        fetch(`/api/send_parent_email/${studentId}`, { method: 'POST' })
+            .then(res => res.json())
+            .then(data => alert(data.message))
+            .catch(err => alert("Email error: " + err));
+    }
+}
+
+function deleteStudent(id) {
+    if (confirm(`Are you sure you want to delete student ID ${id}? This will purge face dataset samples.`)) {
+        fetch('/api/students/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id })
+        })
+        .then(res => res.json())
+        .then(data => {
+            alert(data.message);
+            loadStudents();
+        });
+    }
+}
+
+function captureStudentPhotos() {
+    const id = document.getElementById('reg-id').value.trim();
+    const name = document.getElementById('reg-name').value.trim();
+    const subject = document.getElementById('reg-subject').value.trim();
+    const parent_email = document.getElementById('reg-email').value.trim();
+    const parent_phone = document.getElementById('reg-phone').value.trim();
+
+    if (!id || !name) {
+        alert("Please enter both Student ID and Name before capturing face photos!");
+        return;
+    }
+
+    const btn = document.getElementById('btn-capture-photos');
+    const msg = document.getElementById('capture-status-msg');
+    
+    btn.disabled = true;
+    msg.style.display = 'block';
+    msg.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> Capturing 50 face samples via camera... Please look at webcam!';
+
+    fetch('/api/students/capture_photos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, name, subject, parent_email, parent_phone })
+    })
+    .then(res => res.json())
+    .then(data => {
+        btn.disabled = false;
+        msg.style.display = 'none';
+        alert(data.message);
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('addStudentModal')).hide();
+            document.getElementById('add-student-form').reset();
+            loadStudents();
+        }
+    })
+    .catch(err => {
+        btn.disabled = false;
+        msg.style.display = 'none';
+        alert("Face Capture Error: " + err);
+    });
+}
+
+function retrainModel() {
+    fetch('/api/retrain')
+        .then(res => res.json())
+        .then(data => alert(data.message));
+}
+
+// ---- Registration Camera Functions ----
+let _regStream = null;
+
+function startRegistrationCamera() {
+    const img = document.getElementById('reg-mjpeg');
+    const placeholder = document.getElementById('reg-cam-placeholder');
+    const statusText = document.getElementById('reg-cam-status-text');
+    const statusIcon = document.querySelector('#reg-cam-status i');
+
+    if (!img) return;
+    // Load MJPEG stream from OpenCV Flask backend
+    img.src = '/api/students/live_feed?' + Date.now();
+    img.style.display = 'block';
+    if (placeholder) placeholder.style.display = 'none';
+    statusText.innerText = 'Camera live — OpenCV face detection active!';
+    statusIcon.className = 'fa-solid fa-circle text-success me-1';
+}
+
+function stopRegistrationCamera() {
+    const img = document.getElementById('reg-mjpeg');
+    const placeholder = document.getElementById('reg-cam-placeholder');
+    const statusText = document.getElementById('reg-cam-status-text');
+    const statusIcon = document.querySelector('#reg-cam-status i');
+    const badge = document.getElementById('reg-progress-badge');
+
+    if (img) { img.src = ''; img.style.display = 'none'; }
+    if (placeholder) placeholder.style.display = 'flex';
+    if (statusText) statusText.innerText = 'Camera offline';
+    if (statusIcon) statusIcon.className = 'fa-solid fa-circle text-danger me-1';
+    if (badge) badge.style.display = 'none';
+}
+
+// Auto-start camera when modal opens, auto-stop when closed
+document.addEventListener('DOMContentLoaded', () => {
+    const modal = document.getElementById('addStudentModal');
+    if (modal) {
+        modal.addEventListener('shown.bs.modal', () => startRegistrationCamera());
+        modal.addEventListener('hidden.bs.modal', () => stopRegistrationCamera());
+    }
+    loadStudents();
+});
+</script>
+{% endblock %}

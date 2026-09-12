@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Academic PDF Reports — Smart Classroom AI Portal{% endblock %}
+
+{% block content %}
+<div class="glass-card p-4 mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+            <h4 class="fw-bold text-white mb-1"><i class="fa-solid fa-file-pdf me-2 text-info"></i>Academic PDF Report Generator</h4>
+            <p class="text-muted small mb-0">Generate and download official PDF attendance reports with college headers and teacher sign-off lines.</p>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-md-6">
+        <div class="glass-card p-4">
+            <h5 class="fw-bold text-white mb-3"><i class="fa-solid fa-download me-2 text-info"></i>Export All Subjects PDF Summary</h5>
+            <p class="text-muted small">Generates an overall PDF summary report for all active subjects and registered students.</p>
+            <a href="/download_pdf" class="btn btn-neon-blue w-100 py-2"><i class="fa-solid fa-file-pdf me-2"></i>Download Overall PDF Report</a>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="glass-card p-4">
+            <h5 class="fw-bold text-white mb-3"><i class="fa-solid fa-filter me-2 text-warning"></i>Subject-Filtered PDF Export</h5>
+            <p class="text-muted small">Select a specific subject course to generate a subject-wise PDF report.</p>
+            <div class="input-group">
+                <select id="report-subject-select" class="form-select bg-dark text-white border-secondary">
+                    {% for subj in subjects %}
+                    <option value="{{ subj }}">{{ subj }}</option>
+                    {% endfor %}
+                </select>
+                <button onclick="downloadSubjectPDF()" class="btn btn-outline-info"><i class="fa-solid fa-download me-1"></i>Download</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function downloadSubjectPDF() {
+    const subj = document.getElementById('report-subject-select').value;
+    window.location.href = '/download_pdf?subject=' + encodeURIComponent(subj);
+}
+</script>
+{% endblock %}

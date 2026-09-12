@@ -1,0 +1,477 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Smart Classroom AI Portal{% endblock %}
+
+{% block content %}
+<!-- KPI Cards Row -->
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="glass-card kpi-card kpi-blue p-3">
+            <div class="text-muted small fw-bold">TOTAL REGISTERED STUDENTS</div>
+            <h2 class="fw-bold my-1 text-info" id="kpi-students">--</h2>
+            <div class="small text-secondary"><i class="fa-solid fa-users me-1"></i>Master Registry</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="glass-card kpi-card kpi-green p-3">
+            <div class="text-muted small fw-bold">TOTAL CLASS SESSIONS</div>
+            <h2 class="fw-bold my-1 text-success" id="kpi-sessions">--</h2>
+            <div class="small text-secondary"><i class="fa-solid fa-calendar-check me-1"></i>Tracked Slots</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="glass-card kpi-card kpi-yellow p-3">
+            <div class="text-muted small fw-bold">AVERAGE ATTENDANCE %</div>
+            <h2 class="fw-bold my-1 text-warning" id="kpi-avg">--%</h2>
+            <div class="small text-secondary"><i class="fa-solid fa-chart-line me-1"></i>Classroom Average</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="glass-card kpi-card kpi-red p-3">
+            <div class="text-muted small fw-bold">DEFAULTERS (<75%)</div>
+            <h2 class="fw-bold my-1 text-danger" id="kpi-defaulters">--</h2>
+            <div class="small text-secondary"><i class="fa-solid fa-triangle-exclamation me-1"></i>Low Attendance Warning</div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row 1 -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-8">
+        <div class="glass-card p-4 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="fw-bold text-white mb-0"><i class="fa-solid fa-chart-bar me-2 text-info"></i>Subject-Wise Attendance Rate (%)</h5>
+                <span class="badge bg-dark border border-secondary text-info">Live Analytics</span>
+            </div>
+            <div style="height: 280px;">
+                <canvas id="subjectChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="glass-card p-4 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="fw-bold text-white mb-0"><i class="fa-solid fa-pie-chart me-2 text-warning"></i>Regular vs Defaulters</h5>
+            </div>
+            <div style="height: 280px; position: relative;">
+                <canvas id="pieChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row 2 -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-6">
+        <div class="glass-card p-4 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="fw-bold text-white mb-0"><i class="fa-solid fa-calendar-week me-2 text-info"></i>Weekly Trend (Last 8 Weeks)</h5>
+            </div>
+            <div style="height: 280px;">
+                <canvas id="weeklyChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="glass-card p-4 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="fw-bold text-white mb-0"><i class="fa-solid fa-calendar-days me-2 text-warning"></i>Monthly Attendance Volume</h5>
+            </div>
+            <div style="height: 280px;">
+                <canvas id="monthlyChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row 3 -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-6">
+        <div class="glass-card p-4 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="fw-bold text-white mb-0"><i class="fa-solid fa-clock me-2 text-info"></i>Period-wise Class Distribution</h5>
+            </div>
+            <div style="height: 280px;">
+                <canvas id="hourlyChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="glass-card p-4 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="fw-bold text-white mb-0"><i class="fa-solid fa-calendar me-2 text-warning"></i>Day of Week Volume</h5>
+            </div>
+            <div style="height: 280px;">
+                <canvas id="dowChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions & Defaulter Alert Trigger -->
+<div class="glass-card p-4 mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+            <h5 class="fw-bold text-white mb-1"><i class="fa-solid fa-bolt me-2 text-warning"></i>Quick Academic Actions</h5>
+            <p class="text-muted small mb-0">Generate official PDF reports or send instant email warnings to defaulter parents.</p>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="/download_pdf" class="btn btn-outline-info"><i class="fa-solid fa-file-pdf me-1"></i>Export PDF Report</a>
+            <button onclick="sendEmailAlerts()" class="btn btn-outline-danger"><i class="fa-solid fa-paper-plane me-1"></i>Send Email Alerts to Parents</button>
+            <a href="/attendance" class="btn btn-neon-blue"><i class="fa-solid fa-camera me-1"></i>Start Live Attendance</a>
+        </div>
+    </div>
+</div>
+
+<!-- Subject Drill-Down Table -->
+<div class="glass-card mb-4" style="border-top: 4px solid #00aeff !important;">
+    <div class="p-3 bg-dark">
+        <h5 class="fw-bold text-info mb-0 d-inline-block px-3 py-1 bg-primary text-white" style="border-radius: 4px;"><i class="fa-solid fa-layer-group me-2"></i>Subject Drill-Down</h5>
+    </div>
+    <div class="table-responsive p-0 m-0">
+        <table class="table table-custom align-middle m-0" style="table-layout: fixed;">
+            <thead>
+                <tr style="background-color: #00aeff;">
+                    <th class="text-black fw-bold">Subject Name</th>
+                    <th class="text-black fw-bold">Sessions</th>
+                    <th class="text-black fw-bold">Unique Students</th>
+                    <th class="text-black fw-bold">Capacity</th>
+                    <th class="text-black fw-bold">Attendance %</th>
+                </tr>
+            </thead>
+            <tbody id="subject-drill-body">
+                <tr><td colspan="5" class="text-center py-3 text-muted"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading subjects...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Session Files Panel (appears when subject row is clicked) -->
+<div class="glass-card mb-4" id="session-files-panel" style="display:none; border-top: 3px solid #f5a623 !important;">
+    <div class="p-3" style="background: rgba(0,0,0,0.3);">
+        <h6 class="fw-bold text-warning mb-0" id="session-files-label">
+            <i class="fa-solid fa-file-csv me-2"></i>Session Files for: <span id="session-subject-name">-</span>
+        </h6>
+    </div>
+    <div class="table-responsive p-0">
+        <table class="table table-custom align-middle m-0">
+            <thead>
+                <tr style="background-color: #00aeff;">
+                    <th class="text-black fw-bold">#</th>
+                    <th class="text-black fw-bold">Session Slot</th>
+                    <th class="text-black fw-bold">Date &amp; Time</th>
+                    <th class="text-black fw-bold">Present / Total</th>
+                    <th class="text-black fw-bold">Att %</th>
+                    <th class="text-black fw-bold">Session CSV File</th>
+                </tr>
+            </thead>
+            <tbody id="session-files-body">
+                <tr><td colspan="6" class="text-center text-muted py-3">Select a subject above.</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Student Performance Table -->
+<div class="glass-card p-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="fw-bold text-white mb-0"><i class="fa-solid fa-users-rectangle me-2 text-info"></i>Student Attendance Performance Tracker</h5>
+        <button onclick="loadAnalytics()" class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-rotate me-1"></i>Refresh Data</button>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-custom align-middle">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Student ID</th>
+                    <th>Student Name</th>
+                    <th>Class / Subject</th>
+                    <th>Sessions Attended</th>
+                    <th>Attendance %</th>
+                    <th>Academic Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="student-table-body">
+                <tr>
+                    <td colspan="8" class="text-center text-muted py-4"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading student analytics...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let subjectChart = null;
+let pieChart = null;
+let weeklyChart = null;
+let monthlyChart = null;
+let hourlyChart = null;
+let dowChart = null;
+
+function sendParentEmail(studentId) {
+    if (confirm(`Send parent warning email alert for student ID ${studentId}?`)) {
+        fetch(`/api/send_parent_email/${studentId}`, { method: 'POST' })
+            .then(res => res.json())
+            .then(data => alert(data.message))
+            .catch(err => alert("Email error: " + err));
+    }
+}
+
+let _activeSubjectRow = null;
+
+function loadSessionFiles(subject, rowEl) {
+    // Highlight selected row
+    if (_activeSubjectRow) {
+        _activeSubjectRow.style.outline = '';
+        _activeSubjectRow.style.backgroundColor = '#2b1b1b';
+    }
+    _activeSubjectRow = rowEl;
+    rowEl.style.outline = '2px solid #f5a623';
+    rowEl.style.backgroundColor = '#3a2500';
+
+    // Update header label
+    document.getElementById('session-subject-name').innerText = `${subject} (loading...)`;
+    const panel = document.getElementById('session-files-panel');
+    panel.style.display = 'block';
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    const tbody = document.getElementById('session-files-body');
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading sessions...</td></tr>';
+
+    fetch(`/api/analytics/subject_sessions?subject=${encodeURIComponent(subject)}`)
+        .then(res => res.json())
+        .then(data => {
+            document.getElementById('session-subject-name').innerText =
+                `${subject} (${data.sessions.length} session${data.sessions.length !== 1 ? 's' : ''} found)`;
+            tbody.innerHTML = '';
+            if (data.sessions.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-3">No session CSV files found for "${subject}".</td></tr>`;
+            } else {
+                data.sessions.forEach((s, i) => {
+                    const bg = i % 2 === 0 ? '#1e1e1e' : '#252525';
+                    const pctColor = s.pct >= 75 ? '#6bff6b' : '#ff9f9f';
+                    const fname = s.filename;
+                    tbody.innerHTML += `
+                        <tr style="background-color:${bg}; color:#f0f0f0;">
+                            <td>${s.idx}</td>
+                            <td>${s.slot}</td>
+                            <td>${s.datetime}</td>
+                            <td>${s.present} / ${s.total}</td>
+                            <td style="color:${pctColor}; font-weight:bold;">${s.pct}%</td>
+                            <td class="text-info" style="font-size:0.82em; word-break:break-all;">${fname}</td>
+                        </tr>`;
+                });
+            }
+        })
+        .catch(err => {
+            tbody.innerHTML = `<tr><td colspan="6" class="text-danger text-center py-3">Error loading sessions: ${err}</td></tr>`;
+        });
+}
+
+
+function loadAnalytics() {
+    fetch('/api/analytics')
+        .then(res => res.json())
+        .then(data => {
+            document.getElementById('kpi-students').innerText = data.total_students;
+            document.getElementById('kpi-sessions').innerText = data.total_sessions;
+            document.getElementById('kpi-avg').innerText = data.avg_attendance + '%';
+            document.getElementById('kpi-defaulters').innerText = data.defaulter_count;
+
+            // Render Student Table
+            const tbody = document.getElementById('student-table-body');
+            tbody.innerHTML = '';
+
+            if (data.students.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">No student records found.</td></tr>';
+            } else {
+                data.students.forEach((st, idx) => {
+                    const tr = document.createElement('tr');
+                    const isDefaulter = st.pct < 75.0;
+                    tr.innerHTML = `
+                        <td>${idx + 1}</td>
+                        <td class="fw-bold text-info">${st.id}</td>
+                        <td class="fw-bold">${st.name}</td>
+                        <td>${st.class || 'N/A'}</td>
+                        <td>${st.present} / ${st.total}</td>
+                        <td><strong class="${isDefaulter ? 'text-danger' : 'text-success'}">${st.pct}%</strong></td>
+                        <td>
+                            ${isDefaulter ?
+                                '<span class="badge-defaulter"><i class="fa-solid fa-triangle-exclamation me-1"></i>DEFAULTER (<75%)</span>' :
+                                '<span class="badge-regular"><i class="fa-solid fa-circle-check me-1"></i>REGULAR</span>'}
+                        </td>
+                        <td>
+                            <button onclick="sendParentEmail('${st.id}')" class="btn btn-sm btn-outline-warning"><i class="fa-solid fa-envelope me-1"></i>Email Parent</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            // Render Bar Chart
+            const subjLabels = data.subject_rates.map(s => s.subject);
+            const subjValues = data.subject_rates.map(s => s.rate);
+
+            if (subjectChart) subjectChart.destroy();
+            const ctx1 = document.getElementById('subjectChart').getContext('2d');
+            subjectChart = new Chart(ctx1, {
+                type: 'bar',
+                data: {
+                    labels: subjLabels.length ? subjLabels : ['No Subjects'],
+                    datasets: [{
+                        label: 'Attendance Rate (%)',
+                        data: subjValues.length ? subjValues : [0],
+                        backgroundColor: '#00aeff',
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, max: 100, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#8a94a6' } },
+                        x: { grid: { display: false }, ticks: { color: '#8a94a6' } }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+
+            // Render Subject Drill-Down Table
+            const drillBody = document.getElementById('subject-drill-body');
+            drillBody.innerHTML = '';
+            if (data.subject_rates.length === 0) {
+                drillBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">No subjects tracking information.</td></tr>';
+            } else {
+                data.subject_rates.forEach((s) => {
+                    const tr = document.createElement('tr');
+                    tr.style.cursor = 'pointer';
+                    tr.style.backgroundColor = '#2b1b1b';
+                    tr.onclick = () => loadSessionFiles(s.subject, tr);
+                    tr.innerHTML = `
+                        <td class="fw-bold" style="color: #ff9f9f;">
+                            <i class="fa-solid fa-folder-open me-2 text-info"></i>${s.subject}
+                        </td>
+                        <td style="color: #ff9f9f;">${s.sessions}</td>
+                        <td style="color: #ff9f9f;">${s.unique_students}</td>
+                        <td style="color: #ff9f9f;">${s.capacity}</td>
+                        <td style="color: #ff9f9f;">${s.rate}%</td>
+                    `;
+                    drillBody.appendChild(tr);
+                });
+            }
+
+            // Render Pie Chart
+            const regularCnt = data.total_students - data.defaulter_count;
+            if (pieChart) pieChart.destroy();
+            const ctx2 = document.getElementById('pieChart').getContext('2d');
+            pieChart = new Chart(ctx2, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Regular (>=75%)', 'Defaulters (<75%)'],
+                    datasets: [{
+                        data: [regularCnt, data.defaulter_count],
+                        backgroundColor: ['#2ec4b6', '#e71d36'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { color: '#8a94a6', font: { family: 'Outfit' } } }
+                    }
+                }
+            });
+        });
+}
+
+function sendEmailAlerts() {
+    if (confirm("Send automated HTML email warnings to all parents/students with <75% attendance?")) {
+        fetch('/api/send_email_alerts', { method: 'POST' })
+            .then(res => res.json())
+            .then(data => {
+                alert(data.message);
+            })
+            .catch(err => alert("Error sending emails: " + err));
+    }
+}
+
+function loadAdvancedAnalytics() {
+    fetch('/api/analytics/weekly').then(res => res.json()).then(data => {
+        if(weeklyChart) weeklyChart.destroy();
+        const ctx = document.getElementById('weeklyChart').getContext('2d');
+        weeklyChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: data.weeks.length ? data.weeks : ['No Data'],
+                datasets: [{
+                    label: 'Attendance Count',
+                    data: data.counts.length ? data.counts : [0],
+                    borderColor: '#00aeff', backgroundColor: 'rgba(0,174,255,0.1)',
+                    borderWidth: 2, tension: 0.3, fill: true, pointBackgroundColor: '#f5a623'
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#8a94a6' } }, x: { grid: { display: false }, ticks: { color: '#8a94a6' } } }
+            }
+        });
+    });
+
+    fetch('/api/analytics/monthly').then(res => res.json()).then(data => {
+        if(monthlyChart) monthlyChart.destroy();
+        const ctx = document.getElementById('monthlyChart').getContext('2d');
+        monthlyChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: data.labels.length ? data.labels : ['No Data'],
+                datasets: [{
+                    label: 'Monthly Volume',
+                    data: data.counts.length ? data.counts : [0],
+                    backgroundColor: '#9b59b6', borderRadius: 6
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#8a94a6' } }, x: { grid: { display: false }, ticks: { color: '#8a94a6' } } }
+            }
+        });
+    });
+
+    fetch('/api/analytics/classwise').then(res => res.json()).then(data => {
+        if(hourlyChart) hourlyChart.destroy();
+        const ctxH = document.getElementById('hourlyChart').getContext('2d');
+        hourlyChart = new Chart(ctxH, {
+            type: 'bar',
+            data: {
+                labels: data.hours.labels && data.hours.labels.length ? data.hours.labels : ['No Data'],
+                datasets: [{
+                    label: 'Hourly Classes', data: data.hours.counts && data.hours.counts.length ? data.hours.counts : [0],
+                    backgroundColor: '#3ece48', borderRadius: 4
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#8a94a6' } }, x: { grid: { display: false }, ticks: { color: '#8a94a6' } } } }
+        });
+
+        if(dowChart) dowChart.destroy();
+        const ctxD = document.getElementById('dowChart').getContext('2d');
+        dowChart = new Chart(ctxD, {
+            type: 'bar',
+            data: {
+                labels: data.dow.labels && data.dow.labels.length ? data.dow.labels : ['No Data'],
+                datasets: [{
+                    label: 'Day of Week', data: data.dow.counts && data.dow.counts.length ? data.dow.counts : [0],
+                    backgroundColor: ['#00aeff','#3ece48','#f5a623','#ea2a2a','#9b59b6','#1abc9c','#e74c3c'], borderRadius: 4
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#8a94a6' } }, x: { grid: { display: false }, ticks: { color: '#8a94a6' } } } }
+        });
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadAnalytics();
+    loadAdvancedAnalytics();
+});
+</script>
+{% endblock %}

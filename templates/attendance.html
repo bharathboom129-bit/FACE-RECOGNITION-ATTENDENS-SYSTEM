@@ -1,0 +1,280 @@
+{% extends "base.html" %}
+{% block title %}Live Camera Attendance — Smart Classroom AI Portal{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <!-- LEFT: Session Controls + Camera Feed -->
+    <div class="col-lg-8">
+        <div class="glass-card p-4 mb-3">
+            <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+                <div>
+                    <h5 class="fw-bold text-white mb-0"><i class="fa-solid fa-video me-2 text-info"></i>Live Biometric Attendance Session</h5>
+                    <small class="text-muted">Real-time face recognition &mdash; you choose whether to save results</small>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <label class="text-info small fw-bold mb-0">Subject:</label>
+                    <select id="subject-select" class="form-select form-select-sm form-select-custom" style="width:180px;">
+                        {% for subj in subjects %}
+                        <option value="{{ subj }}">{{ subj }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <!-- Camera placeholder (shown when session not running) -->
+            <div id="cam-placeholder" class="rounded-3 border border-secondary d-flex flex-column align-items-center justify-content-center text-center p-5" style="min-height:400px; background:#0b0c10;">
+                <div class="rounded-circle bg-secondary bg-opacity-25 p-4 mb-3">
+                    <i class="fa-solid fa-video-slash fs-1 text-info"></i>
+                </div>
+                <h5 class="fw-bold text-white mb-2">Camera is OFF</h5>
+                <p class="text-muted small mb-4" style="max-width:360px;">
+                    Click <strong>"Start Attendance Session"</strong> below. A separate OpenCV window will open for face recognition. When you press <kbd>Q</kbd> to close it, the results appear here for review before saving.
+                </p>
+                <button onclick="startSession()" id="btn-start-session" class="btn btn-neon-blue px-4 py-2">
+                    <i class="fa-solid fa-play me-2"></i>Start Attendance Session
+                </button>
+            </div>
+
+            <!-- Running indicator (shown while API call is in progress) -->
+            <div id="session-running" class="rounded-3 border border-success d-none flex-column align-items-center justify-content-center text-center p-5" style="min-height:400px; background:#0b0c10;">
+                <i class="fa-solid fa-camera fa-3x text-success mb-3 fa-beat"></i>
+                <h5 class="fw-bold text-white mb-2">Session Running — OpenCV Window is Open</h5>
+                <p class="text-muted small mb-3">Face detection is active. Press <kbd>Q</kbd> in the OpenCV camera window when done.<br>Results will appear here after you close the window.</p>
+                <div class="spinner-border text-success" style="width:2rem;height:2rem;"></div>
+            </div>
+
+            <!-- Session bar -->
+            <div class="d-flex justify-content-between align-items-center mt-3 gap-2 flex-wrap">
+                <span id="cam-status-badge" class="badge bg-secondary py-2 px-3">
+                    <i class="fa-solid fa-circle me-1"></i>No active session
+                </span>
+                <a href="/reports" class="btn btn-sm btn-outline-info">
+                    <i class="fa-solid fa-file-csv me-1"></i>View Saved Session CSVs
+                </a>
+            </div>
+        </div>
+
+        <!-- ★ SAVE / DISCARD CONFIRMATION PANEL (hidden until session ends with results) -->
+        <div id="confirm-panel" class="glass-card p-4 d-none" style="border: 2px solid #f5a623 !important;">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <i class="fa-solid fa-triangle-exclamation fa-lg text-warning"></i>
+                <h5 class="fw-bold text-warning mb-0">Session Complete — Review Before Saving</h5>
+            </div>
+            <div class="alert alert-warning border-warning text-dark small mb-3 fw-bold">
+                ⚠️ <strong>Do NOT save if the session was accidental or the camera opened by mistake.</strong>
+                Only save if you actually conducted the class and took proper attendance.
+            </div>
+
+            <div class="row g-3 mb-3">
+                <div class="col-4">
+                    <div class="text-center p-2 rounded" style="background:rgba(0,255,136,0.1); border:1px solid #00ff88;">
+                        <div class="fw-bold text-success fs-4" id="confirm-count">0</div>
+                        <div class="text-muted small">Students Present</div>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="text-center p-2 rounded" style="background:rgba(0,174,255,0.1); border:1px solid #00aeff;">
+                        <div class="fw-bold text-info fs-4" id="confirm-subject">—</div>
+                        <div class="text-muted small">Subject</div>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="text-center p-2 rounded" style="background:rgba(245,166,35,0.1); border:1px solid #f5a623;">
+                        <div class="fw-bold text-warning fs-4" id="confirm-time">—</div>
+                        <div class="text-muted small">Session Time</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Detected students mini-table -->
+            <div class="table-responsive mb-3" style="max-height:200px; overflow-y:auto;">
+                <table class="table table-sm table-custom align-middle mb-0" id="confirm-table">
+                    <thead>
+                        <tr>
+                            <th>#</th><th>Student ID</th><th>Name</th><th>Time Marked</th>
+                        </tr>
+                    </thead>
+                    <tbody id="confirm-tbody"></tbody>
+                </table>
+            </div>
+
+            <div class="d-flex gap-3">
+                <button onclick="saveSession()" class="btn btn-success fw-bold flex-grow-1 py-2">
+                    <i class="fa-solid fa-floppy-disk me-2"></i>✅ SAVE Attendance
+                </button>
+                <button onclick="discardSession()" class="btn btn-outline-danger fw-bold flex-grow-1 py-2">
+                    <i class="fa-solid fa-trash me-2"></i>❌ DISCARD (Don't Save)
+                </button>
+            </div>
+            <p class="text-muted small mt-2 mb-0 text-center">
+                If you click DISCARD or close this page, <strong>nothing is written to attendance records</strong>.
+            </p>
+        </div>
+    </div>
+
+    <!-- RIGHT: Instructions + Quick Actions + Clear Data -->
+    <div class="col-lg-4">
+        <div class="glass-card p-4 mb-3">
+            <h5 class="fw-bold text-white mb-3"><i class="fa-solid fa-circle-info me-2 text-info"></i>How It Works</h5>
+            <div class="d-flex flex-column gap-2 small text-muted">
+                <div><span class="badge bg-primary me-2">1</span> Select the subject / class</div>
+                <div><span class="badge bg-primary me-2">2</span> Click <strong>Start Session</strong> — OpenCV window opens</div>
+                <div><span class="badge bg-primary me-2">3</span> Students look at camera &mdash; faces auto-recognized</div>
+                <div><span class="badge bg-primary me-2">4</span> Press <kbd>Q</kbd> when done &mdash; results shown here</div>
+                <div><span class="badge bg-success me-2">5</span> Click <strong>SAVE</strong> to write to attendance records</div>
+                <div><span class="badge bg-danger me-2">✕</span> Click <strong>DISCARD</strong> if session was accidental</div>
+            </div>
+        </div>
+
+        <div class="glass-card p-4 mb-3">
+            <h5 class="fw-bold text-white mb-3"><i class="fa-solid fa-link me-2 text-info"></i>Quick Links</h5>
+            <div class="d-grid gap-2">
+                <a href="/download_pdf" class="btn btn-outline-info btn-sm">
+                    <i class="fa-solid fa-file-pdf me-2"></i>Export PDF Report
+                </a>
+                <a href="/" class="btn btn-neon-blue btn-sm">
+                    <i class="fa-solid fa-chart-pie me-2"></i>Analytics Dashboard
+                </a>
+                <a href="/students" class="btn btn-outline-warning btn-sm">
+                    <i class="fa-solid fa-users me-2"></i>Student Registry
+                </a>
+            </div>
+        </div>
+
+        <!-- ★ CLEAR DATA PANEL -->
+        <div class="glass-card p-4" style="border: 1px solid rgba(234,42,42,0.4) !important;">
+            <h5 class="fw-bold text-danger mb-1"><i class="fa-solid fa-trash me-2"></i>Clear / Reset Data</h5>
+            <p class="text-muted small mb-3">Removes attendance records from the system. Useful for end of semester or fresh start.</p>
+            <div class="d-grid gap-2">
+                <button onclick="clearData('attendance')" class="btn btn-outline-warning btn-sm">
+                    <i class="fa-solid fa-eraser me-1"></i>Clear Attendance Records Only
+                </button>
+                <button onclick="clearData('all')" class="btn btn-outline-danger btn-sm">
+                    <i class="fa-solid fa-bomb me-1"></i>Clear ALL Data (Students + Attendance)
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let _sessionSubject = '';
+
+function startSession() {
+    const subj = document.getElementById('subject-select').value;
+    _sessionSubject = subj;
+
+    document.getElementById('cam-placeholder').classList.add('d-none');
+    document.getElementById('confirm-panel').classList.add('d-none');
+    document.getElementById('session-running').classList.remove('d-none');
+    document.getElementById('session-running').style.display = 'flex';
+    document.getElementById('cam-status-badge').className = 'badge bg-success py-2 px-3';
+    document.getElementById('cam-status-badge').innerHTML = '<i class="fa-solid fa-circle me-1 fa-beat"></i>Session Running — OpenCV Camera Active';
+
+    fetch('/api/attendance/start_session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subject: subj })
+    })
+    .then(res => res.json())
+    .then(data => {
+        document.getElementById('session-running').classList.add('d-none');
+        document.getElementById('cam-status-badge').className = 'badge bg-secondary py-2 px-3';
+        document.getElementById('cam-status-badge').innerHTML = '<i class="fa-solid fa-circle me-1"></i>Session Ended';
+
+        if (!data.success) {
+            document.getElementById('cam-placeholder').classList.remove('d-none');
+            alert('Session Error: ' + data.message);
+            return;
+        }
+
+        if (!data.pending || data.count === 0) {
+            document.getElementById('cam-placeholder').classList.remove('d-none');
+            alert(data.message);
+            return;
+        }
+
+        // Show Save/Discard panel
+        showConfirmPanel(data.records, subj);
+    })
+    .catch(err => {
+        document.getElementById('session-running').classList.add('d-none');
+        document.getElementById('cam-placeholder').classList.remove('d-none');
+        alert('Error starting session: ' + err);
+    });
+}
+
+function showConfirmPanel(records, subject) {
+    document.getElementById('cam-placeholder').classList.add('d-none');
+    const panel = document.getElementById('confirm-panel');
+    panel.classList.remove('d-none');
+
+    document.getElementById('confirm-count').innerText = records.length;
+    document.getElementById('confirm-subject').innerText = subject;
+    document.getElementById('confirm-time').innerText = new Date().toLocaleTimeString();
+
+    const tbody = document.getElementById('confirm-tbody');
+    tbody.innerHTML = '';
+    records.forEach((r, i) => {
+        tbody.innerHTML += `
+            <tr>
+                <td>${i+1}</td>
+                <td class="text-info fw-bold">${r.ID}</td>
+                <td>${r.NAME}</td>
+                <td>${r.TIME || '—'}</td>
+            </tr>`;
+    });
+
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function saveSession() {
+    fetch('/api/attendance/save_session', { method: 'POST' })
+        .then(res => res.json())
+        .then(data => {
+            document.getElementById('confirm-panel').classList.add('d-none');
+            document.getElementById('cam-placeholder').classList.remove('d-none');
+            document.getElementById('cam-status-badge').className = 'badge bg-secondary py-2 px-3';
+            document.getElementById('cam-status-badge').innerHTML = '<i class="fa-solid fa-circle me-1"></i>No active session';
+            alert('✅ ' + data.message);
+        })
+        .catch(err => alert('Save error: ' + err));
+}
+
+function discardSession() {
+    if (!confirm('Are you sure you want to DISCARD this session? No attendance will be recorded.')) return;
+    fetch('/api/attendance/discard_session', { method: 'POST' })
+        .then(res => res.json())
+        .then(data => {
+            document.getElementById('confirm-panel').classList.add('d-none');
+            document.getElementById('cam-placeholder').classList.remove('d-none');
+            document.getElementById('cam-status-badge').className = 'badge bg-secondary py-2 px-3';
+            document.getElementById('cam-status-badge').innerHTML = '<i class="fa-solid fa-circle me-1"></i>Session Discarded';
+            alert('🗑️ ' + data.message);
+        })
+        .catch(err => alert('Discard error: ' + err));
+}
+
+function clearData(what) {
+    const msg = what === 'all'
+        ? 'WARNING: This will DELETE ALL student records, face images, and ALL attendance data permanently!\n\nAre you absolutely sure?'
+        : 'This will delete ALL attendance CSV files and master records. Student registrations will be kept.\n\nContinue?';
+    if (!confirm(msg)) return;
+    if (what === 'all' && !confirm('FINAL CONFIRMATION: Delete everything including student registrations?')) return;
+
+    fetch('/api/admin/clear_data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ what })
+    })
+    .then(res => res.json())
+    .then(data => {
+        alert((data.success ? '✅ ' : '❌ ') + data.message);
+        if (data.success) window.location.reload();
+    })
+    .catch(err => alert('Error: ' + err));
+}
+</script>
+{% endblock %}

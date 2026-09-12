@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}System Settings — Smart Classroom AI Portal{% endblock %}
+
+{% block content %}
+<div class="glass-card p-4 mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+            <h4 class="fw-bold text-white mb-1"><i class="fa-solid fa-gear me-2 text-info"></i>Email & HOD Configuration (.env)</h4>
+            <p class="text-muted small mb-0">Configure Gmail SMTP credentials, App Password, and HOD notification email address.</p>
+        </div>
+    </div>
+</div>
+
+<div class="glass-card p-4" style="max-width: 650px;">
+    <form id="settings-form">
+        <div class="mb-3">
+            <label class="form-label text-muted small fw-bold">Sender Gmail Address *</label>
+            <input type="email" id="cfg-sender" class="form-control bg-dark text-white border-secondary" value="{{ config.SENDER_EMAIL }}" required>
+            <div class="form-text text-muted">Gmail account used to send automated defaulter warnings.</div>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label text-muted small fw-bold">Gmail 16-Character App Password *</label>
+            <input type="password" id="cfg-pass" class="form-control bg-dark text-white border-secondary" value="{{ config.SENDER_PASSWORD }}" required>
+            <div class="form-text text-muted">Generate at: <a href="https://myaccount.google.com/apppasswords" target="_blank" class="text-info">myaccount.google.com/apppasswords</a></div>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label text-muted small fw-bold">Head of Department (HOD) Email *</label>
+            <input type="email" id="cfg-hod" class="form-control bg-dark text-white border-secondary" value="{{ config.HOD_EMAIL }}" required>
+            <div class="form-text text-muted">Email address to receive official monthly PDF summary reports.</div>
+        </div>
+
+        <button type="button" onclick="saveSettings()" class="btn btn-neon-blue w-100 py-2 mt-3"><i class="fa-solid fa-floppy-disk me-2"></i>Save Configuration to .env</button>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function saveSettings() {
+    const sender_email = document.getElementById('cfg-sender').value.trim();
+    const sender_password = document.getElementById('cfg-pass').value.trim();
+    const hod_email = document.getElementById('cfg-hod').value.trim();
+
+    fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sender_email, sender_password, hod_email })
+    })
+    .then(res => res.json())
+    .then(data => alert(data.message));
+}
+</script>
+{% endblock %}
